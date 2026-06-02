@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package market;
+
+import "common.proto";
+
+service SubmitOrder {
+  rpc SubmitOrder(SubmitOrderRequest) returns (SubmitOrderResponse);
+}
+
+service CancelOrder {
+  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+}
+
+message SubmitOrderRequest {
+  string node_id = 1;
+  Order order = 2;
+}
+
+message SubmitOrderResponse {
+  OrderStatus order_status = 1;
+  string order_id = 2;
+  int64 quantity = 3;
+  double avg_price = 4;
+  uint64 timestamp = 5;
+  string rejection_reason = 6;
+}
+
+message CancelOrderRequest {
+  string node_id = 1;
+  string order_id = 2;
+}
+
+message CancelOrderResponse {
+  bool successful = 1;
+}
