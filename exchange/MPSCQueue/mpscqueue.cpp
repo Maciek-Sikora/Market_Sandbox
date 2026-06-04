@@ -13,7 +13,9 @@ enum State {
 
 template <typename T>
 class Node {
-public:
+    friend class BufferList<T>;
+    friend class MPSCQueue<T>;
+private:
     T data;
     std::atomic<State> isSet;
     Node() : isSet(State::EMPTY) {}
@@ -89,6 +91,51 @@ public:
                 }
             }
         }
+    }
+
+    bool dequeue(T& data) {
+        Node<T>* n = &(headOfQueue->currBuffer[headOfQueue->head]);
+        while (n->isSet.load() == State::HANDLED)
+        {
+            headOfQueue->head++;
+            bool res = moveToNextBuffer();
+             if (!res) {
+                return false;
+            }
+            n = &(headOfQueue->currBuffer[headOfQueue->head]);
+        }
+       
+        if (headOfQueue == tailOfQueue.load() && headOfQueue->head == tail.load() % bufferSize) {
+            return false;
+        }
+
+
+        if (n->isSet.load() == State::SET) {
+            headOfQueue->head++;
+            moveToNextBuffer();
+            data = n->data;
+            return true;
+        }
+
+        if (n->isSet.load() == State::EMPTY) {
+            BufferList<T>* tempHeadOfQueue = headOfQueue;
+            PositionIndex tempHead = headOfQueue->head;
+            Node<T>* tempN = &(tempHeadOfQueue->currBuffer[tempHead]);
+            bool res = Scan(tempHeadOfQueue, tempHead, tempN);
+            if (!res) {
+                return false;
+            }
+            ReScan(headOfQueue, tempHeadOfQueue, tempHead, tempN);
+            data = tempN->data;
+            tempN->isSet.store(State::HANDLED);
+            if (tempHeadOfQueue == headOfQueue && tempHead == headOfQueue->head) {
+                headOfQueue->head++;
+                moveToNextBuffer();
+            }
+            return true;
+        }
+        
+        return false
     }
 
     ~MPSCQueue() {
