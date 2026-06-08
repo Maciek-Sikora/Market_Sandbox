@@ -43,9 +43,10 @@ class MPSCQueue {
     BufferList<T>* headOfQueue;
     std::atomic<BufferList<T>*> tailOfQueue;
     std::atomic<PositionIndex> tail;
+    BufferList<T>* garbageListHead;
 
 public:
-    MPSCQueue() : headOfQueue(new BufferList<T>(nullptr, 0, 1)), tailOfQueue(headOfQueue), tail(0) {}
+    MPSCQueue() : headOfQueue(new BufferList<T>(nullptr, 0, 1)), tailOfQueue(headOfQueue), tail(0), garbageListHead(nullptr) {}
 
     void enqueue(const T& data) {
         PositionIndex location = tail.fetch_add(1, std::memory_order_relaxed);
@@ -135,11 +136,38 @@ public:
             return true;
         }
         
-        return false
+        return false;
+    }
+
+    bool moveToNextBuffer() {
+        if (headOfQueue->head >= bufferSize) {
+            if (headOfQueue == tailOfQueue.load(std::memory_order_acquire)) {
+                return false;
+            }
+            BufferList<T>* next = headOfQueue->next.load(std::memory_order_acquire);
+            if (next == nullptr) {
+                return false;
+            }
+            BufferList<T>* g = garbageListHead;
+            while (g != nullptr && g->positionInQueue < next->positionInQueue) {
+                garbageListHead = g->next.load(std::memory_order_relaxed);
+                delete g;
+                g = garbageListHead;
+            }
+            delete headOfQueue;
+            headOfQueue = next;
+        }
+        return true;
     }
 
     ~MPSCQueue() {
         BufferList<T>* current = headOfQueue;
+        while (current != nullptr) {
+            BufferList<T>* next = current->next.load();
+            delete current;
+            current = next;
+        }
+        current = garbageListHead;
         while (current != nullptr) {
             BufferList<T>* next = current->next.load();
             delete current;
