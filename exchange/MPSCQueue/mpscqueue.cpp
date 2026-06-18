@@ -160,6 +160,32 @@ public:
         return true;
     }
 
+    bool fold(BufferList<T>*& tempHeadOfQueue, PositionIndex& tempHead, bool& flagMoveToNewBuffer, bool& flagBufferAllHandled) {
+        if (tempHeadOfQueue == tailOfQueue.load(std::memory_order_acquire)) {
+            return false;
+        }
+        BufferList<T>* next = tempHeadOfQueue->next.load(std::memory_order_acquire);
+        BufferList<T>* prev = tempHeadOfQueue->prev;
+        if (next == nullptr) {
+            return false;
+        }
+
+        next->prev = prev;
+        prev->next.store(next, std::memory_order_release);
+        delete[] tempHeadOfQueue->currBuffer;
+        tempHeadOfQueue->currBuffer = nullptr;
+        tempHeadOfQueue->next.store(garbageListHead, std::memory_order_relaxed);
+        garbageListHead = tempHeadOfQueue;
+
+        tempHeadOfQueue = next;
+        tempHead = tempHeadOfQueue->head;
+        flagBufferAllHandled = true;
+        flagMoveToNewBuffer = true;
+        return true;
+    }
+
+    
+
     ~MPSCQueue() {
         BufferList<T>* current = headOfQueue;
         while (current != nullptr) {
