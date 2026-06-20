@@ -184,6 +184,38 @@ public:
         return true;
     }
 
+    bool Scan(BufferList<T>*& tempHeadOfQueue, PositionIndex& tempHead, Node<T>*& tempN) {
+        bool flagMoveToNewBuffer = false;
+        bool flagBufferAllHandled = true;
+
+        while (tempN->isSet.load() != State::SET) {
+            tempHead++;
+            if (tempN->isSet.load() != State::HANDLED) {
+                flagBufferAllHandled = false;
+            }
+
+            if (tempHead >= bufferSize) {
+                if (flagBufferAllHandled && flagMoveToNewBuffer) {
+                    if (!fold(tempHeadOfQueue, tempHead, flagMoveToNewBuffer, flagBufferAllHandled)) {
+                        return false;
+                    }
+                } else {
+                    BufferList<T>* next = tempHeadOfQueue->next.load(std::memory_order_acquire);
+                    if (next == nullptr) {
+                        return false;
+                    }
+                    tempHeadOfQueue = next;
+                    tempHead = tempHeadOfQueue->head;
+                    flagBufferAllHandled = true;
+                    flagMoveToNewBuffer = true;
+                }
+            }
+
+            tempN = &(tempHeadOfQueue->currBuffer[tempHead]);
+        }
+        return true;
+    }
+
     
 
     ~MPSCQueue() {
