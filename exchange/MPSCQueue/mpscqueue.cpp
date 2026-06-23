@@ -216,7 +216,30 @@ public:
         return true;
     }
 
-    
+    void ReScan(BufferList<T>* originalHeadOfQueue, BufferList<T>*& tempHeadOfQueue, PositionIndex& tempHead, Node<T>*& tempN) {
+        BufferList<T>* scanHeadOfQueue = originalHeadOfQueue;
+        PositionIndex scanHead = scanHeadOfQueue->head;
+
+        while (scanHeadOfQueue != tempHeadOfQueue || scanHead < tempHead) {
+            if (scanHead >= bufferSize) {
+                scanHeadOfQueue = scanHeadOfQueue->next.load(std::memory_order_acquire);
+                scanHead = scanHeadOfQueue->head;
+                continue;
+            }
+
+            Node<T>* scanN = &(scanHeadOfQueue->currBuffer[scanHead]);
+            if (scanN->isSet.load() == State::SET) {
+                tempHead = scanHead;
+                tempHeadOfQueue = scanHeadOfQueue;
+                tempN = scanN;
+                scanHeadOfQueue = originalHeadOfQueue;
+                scanHead = scanHeadOfQueue->head;
+                continue;
+            }
+
+            scanHead++;
+        }
+    }
 
     ~MPSCQueue() {
         BufferList<T>* current = headOfQueue;
