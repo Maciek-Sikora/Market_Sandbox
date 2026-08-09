@@ -1,3 +1,4 @@
+#pragma once
 #include "exchange/OrderProcessor/entity/order.h"
 #include "exchange/OrderProcessor/dto/orderSideDTO.h"
 #include "exchange/OrderProcessor/dto/orderTypeDTO.h"
@@ -11,7 +12,8 @@ public:
         Order order{
             OrderSideDTO::protoToOrderSide(request->order().orderside()),
             OrderTypeDTO::protoToOrderType(request->order().ordertype()),
-            request->order().price()
+            request->order().price(),
+            request->order().quantity()
         };
         return order;
     }

@@ -18,6 +18,7 @@ message Order {
   OrderSide orderSide = 1;
   OrderType orderType = 2;
   double price = 3;
+  int64 quantity = 4;
 }
 
 enum OrderStatus {

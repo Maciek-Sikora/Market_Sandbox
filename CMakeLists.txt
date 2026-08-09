@@ -6,6 +6,8 @@ list(APPEND CMAKE_PREFIX_PATH "C:/msys64/ucrt64")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
 find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 
@@ -34,6 +36,8 @@ protobuf_generate(
 
 add_executable(exchangeService
     exchange/OrderProcessor/service/exchangeService.cpp
+    exchange/OrderProcessor/engine/orderBook.cpp
+    exchange/OrderProcessor/engine/matchingEngine.cpp
     ${PROTO_SRCS}
     ${GRPC_SRCS}
 )
@@ -46,4 +50,12 @@ target_include_directories(exchangeService PRIVATE
 target_link_libraries(exchangeService PRIVATE
     gRPC::grpc++
     protobuf::libprotobuf
+    Threads::Threads
 )
+
+option(BUILD_MPSCQUEUE_SMOKETEST "Build standalone MPSCQueue smoke test" OFF)
+if(BUILD_MPSCQUEUE_SMOKETEST)
+    add_executable(mpscqueue_smoketest exchange/OrderProcessor/repo/tests/mpscqueue_smoketest.cpp)
+    target_include_directories(mpscqueue_smoketest PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(mpscqueue_smoketest PRIVATE Threads::Threads)
+endif()

@@ -1,3 +1,4 @@
+#pragma once
 #include <atomic>
 #include <cstdint>
 
@@ -10,6 +11,9 @@ enum State {
     SET,
     HANDLED
 };
+
+template <typename T> class BufferList;
+template <typename T> class MPSCQueue;
 
 template <typename T>
 class Node {
@@ -83,11 +87,13 @@ public:
             n->data = data;
             n->isSet.store(State::SET);
 
-            if ((location - prevSize) == 1 && isLastBuffer) {
+            if ((location - prevSize) == bufferSize - 2 && isLastBuffer) {
                 BufferList<T>* newBuffer = new BufferList<T>(tempTail, 0, tempTail->positionInQueue + 1);
 
                 BufferList<T>* expected_null = nullptr;
-                if (!tempTail->next.compare_exchange_strong(expected_null, newBuffer, std::memory_order_release)) {
+                if (tempTail->next.compare_exchange_strong(expected_null, newBuffer, std::memory_order_release)) {
+                    tailOfQueue.compare_exchange_strong(tempTail, newBuffer, std::memory_order_release);
+                } else {
                     delete newBuffer;
                 }
             }
@@ -95,6 +101,12 @@ public:
     }
 
     bool dequeue(T& data) {
+        while (headOfQueue->head >= bufferSize) {
+            if (!moveToNextBuffer()) {
+                return false;
+            }
+        }
+
         Node<T>* n = &(headOfQueue->currBuffer[headOfQueue->head]);
         while (n->isSet.load() == State::HANDLED)
         {
@@ -105,7 +117,7 @@ public:
             }
             n = &(headOfQueue->currBuffer[headOfQueue->head]);
         }
-       
+
         if (headOfQueue == tailOfQueue.load() && headOfQueue->head == tail.load() % bufferSize) {
             return false;
         }
@@ -135,7 +147,7 @@ public:
             }
             return true;
         }
-        
+
         return false;
     }
 
