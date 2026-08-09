@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package market;
 
-import "common.proto";
+import "order.proto";
 
 service SubmitOrder {
   rpc SubmitOrder(SubmitOrderRequest) returns (SubmitOrderResponse);

@@ -2,23 +2,21 @@ syntax = "proto3";
 
 package market;
 
-enum Side {
+enum OrderSide {
   SIDE_UNSPECIFIED = 0;
   BID = 1;
   ASK = 2;
 }
 
+enum OrderType {
+  ORDER_TYPE_UNSPECIFIED = 0;
+  MARKET = 1;
+  LIMIT = 2;
+}
+
 message Order {
-  Side side = 1;
-
-  enum OrderType {
-    ORDER_TYPE_UNSPECIFIED = 0;
-    MARKET = 1;
-    LIMIT = 2;
-  }
-
+  OrderSide orderSide = 1;
   OrderType orderType = 2;
-
   double price = 3;
 }
 
