@@ -89,4 +89,13 @@ if(BUILD_BENCHMARKS)
     add_executable(mpscqueue_benchmark exchange/OrderProcessor/repo/tests/mpscqueue_benchmark.cpp)
     target_include_directories(mpscqueue_benchmark PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(mpscqueue_benchmark PRIVATE Threads::Threads)
+
+    add_executable(exchange_benchmark
+        nodes/bench/benchMain.cpp
+        nodes/common/exchangeClient.cpp
+        ${PROTO_SRCS}
+        ${GRPC_SRCS}
+    )
+    target_include_directories(exchange_benchmark PRIVATE ${CMAKE_SOURCE_DIR} ${PROTO_OUT_DIR})
+    target_link_libraries(exchange_benchmark PRIVATE gRPC::grpc++ protobuf::libprotobuf Threads::Threads)
 endif()
