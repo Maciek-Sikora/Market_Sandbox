@@ -54,6 +54,29 @@ target_link_libraries(exchangeService PRIVATE
     Threads::Threads
 )
 
+add_executable(node
+    nodes/common/nodeMain.cpp
+    nodes/common/exchangeClient.cpp
+    nodes/strategies/marketMakerStrategy.cpp
+    nodes/strategies/momentumStrategy.cpp
+    nodes/strategies/meanReversionStrategy.cpp
+    nodes/strategies/noiseTraderStrategy.cpp
+    nodes/strategies/replayStrategy.cpp
+    ${PROTO_SRCS}
+    ${GRPC_SRCS}
+)
+
+target_include_directories(node PRIVATE
+    ${CMAKE_SOURCE_DIR}
+    ${PROTO_OUT_DIR}
+)
+
+target_link_libraries(node PRIVATE
+    gRPC::grpc++
+    protobuf::libprotobuf
+    Threads::Threads
+)
+
 option(BUILD_MPSCQUEUE_SMOKETEST "Build standalone MPSCQueue smoke test" OFF)
 if(BUILD_MPSCQUEUE_SMOKETEST)
     add_executable(mpscqueue_smoketest exchange/OrderProcessor/repo/tests/mpscqueue_smoketest.cpp)
