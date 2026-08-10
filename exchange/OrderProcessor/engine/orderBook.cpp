@@ -5,6 +5,7 @@
 
 #include "exchange/OrderProcessor/entity/orderStatus.h"
 #include "exchange/OrderProcessor/entity/orderType.h"
+#include "exchange/OrderProcessor/engine/tradeIdGenerator.h"
 
 void OrderBook::restBid(const Order& order) {
     auto& level = _bids[order.getPrice()];
@@ -20,7 +21,32 @@ void OrderBook::restAsk(const Order& order) {
     _orderIndex[order.getOrderId()] = OrderLocation{ORDER_SIDE::ASK, order.getPrice(), it};
 }
 
-EngineResult OrderBook::submitBid(Order order, uint64_t timestamp) {
+TopOfBook OrderBook::currentTopOfBook(uint64_t timestamp) const {
+    TopOfBook tob;
+    tob.timestamp = timestamp;
+
+    if (!_bids.empty()) {
+        int64_t qty = 0;
+        for (const auto& o : _bids.begin()->second) {
+            qty += o.getQuantity();
+        }
+        tob.bidPrice = _bids.begin()->first;
+        tob.bidQuantity = qty;
+    }
+
+    if (!_asks.empty()) {
+        int64_t qty = 0;
+        for (const auto& o : _asks.begin()->second) {
+            qty += o.getQuantity();
+        }
+        tob.askPrice = _asks.begin()->first;
+        tob.askQuantity = qty;
+    }
+
+    return tob;
+}
+
+EngineResult OrderBook::submitBid(Order order, uint64_t timestamp, std::vector<MarketEvent>& events) {
     EngineResult result;
     result.timestamp = timestamp;
     result.orderId = order.getOrderId();
@@ -45,6 +71,16 @@ EngineResult OrderBook::submitBid(Order order, uint64_t timestamp) {
             filledQty += tradeQty;
             filledNotional += static_cast<double>(tradeQty) * levelPrice;
             restingIt->reduceQuantity(tradeQty);
+
+            events.push_back(Trade{
+                TradeIdGenerator::next(),
+                levelPrice,
+                tradeQty,
+                order.getSide(),
+                order.getOrderId(),
+                restingIt->getOrderId(),
+                timestamp
+            });
 
             if (restingIt->getQuantity() == 0) {
                 _orderIndex.erase(restingIt->getOrderId());
@@ -72,9 +108,11 @@ EngineResult OrderBook::submitBid(Order order, uint64_t timestamp) {
             result.rejectionReason = "insufficient liquidity: filled " + std::to_string(filledQty) +
                                       " of " + std::to_string(incomingQty);
         }
+        events.push_back(currentTopOfBook(timestamp));
         return result;
     }
 
+    // LIMIT
     if (filledQty == incomingQty) {
         result.status = ORDER_STATUS::FILLED;
     } else {
@@ -82,10 +120,11 @@ EngineResult OrderBook::submitBid(Order order, uint64_t timestamp) {
         restBid(order);
         result.status = (filledQty == 0) ? ORDER_STATUS::QUEUED : ORDER_STATUS::PARTIAL;
     }
+    events.push_back(currentTopOfBook(timestamp));
     return result;
 }
 
-EngineResult OrderBook::submitAsk(Order order, uint64_t timestamp) {
+EngineResult OrderBook::submitAsk(Order order, uint64_t timestamp, std::vector<MarketEvent>& events) {
     EngineResult result;
     result.timestamp = timestamp;
     result.orderId = order.getOrderId();
@@ -110,6 +149,16 @@ EngineResult OrderBook::submitAsk(Order order, uint64_t timestamp) {
             filledQty += tradeQty;
             filledNotional += static_cast<double>(tradeQty) * levelPrice;
             restingIt->reduceQuantity(tradeQty);
+
+            events.push_back(Trade{
+                TradeIdGenerator::next(),
+                levelPrice,
+                tradeQty,
+                order.getSide(),
+                order.getOrderId(),
+                restingIt->getOrderId(),
+                timestamp
+            });
 
             if (restingIt->getQuantity() == 0) {
                 _orderIndex.erase(restingIt->getOrderId());
@@ -137,9 +186,11 @@ EngineResult OrderBook::submitAsk(Order order, uint64_t timestamp) {
             result.rejectionReason = "insufficient liquidity: filled " + std::to_string(filledQty) +
                                       " of " + std::to_string(incomingQty);
         }
+        events.push_back(currentTopOfBook(timestamp));
         return result;
     }
 
+    // LIMIT
     if (filledQty == incomingQty) {
         result.status = ORDER_STATUS::FILLED;
     } else {
@@ -147,17 +198,18 @@ EngineResult OrderBook::submitAsk(Order order, uint64_t timestamp) {
         restAsk(order);
         result.status = (filledQty == 0) ? ORDER_STATUS::QUEUED : ORDER_STATUS::PARTIAL;
     }
+    events.push_back(currentTopOfBook(timestamp));
     return result;
 }
 
-EngineResult OrderBook::submit(Order order, uint64_t timestamp) {
+EngineResult OrderBook::submit(Order order, uint64_t timestamp, std::vector<MarketEvent>& events) {
     if (order.getSide() == ORDER_SIDE::BID) {
-        return submitBid(std::move(order), timestamp);
+        return submitBid(std::move(order), timestamp, events);
     }
-    return submitAsk(std::move(order), timestamp);
+    return submitAsk(std::move(order), timestamp, events);
 }
 
-EngineResult OrderBook::cancel(const std::string& orderId, uint64_t timestamp) {
+EngineResult OrderBook::cancel(const std::string& orderId, uint64_t timestamp, std::vector<MarketEvent>& events) {
     EngineResult result;
     result.timestamp = timestamp;
     result.orderId = orderId;
@@ -186,5 +238,6 @@ EngineResult OrderBook::cancel(const std::string& orderId, uint64_t timestamp) {
 
     _orderIndex.erase(found);
     result.cancelSuccessful = true;
+    events.push_back(currentTopOfBook(timestamp));
     return result;
 }

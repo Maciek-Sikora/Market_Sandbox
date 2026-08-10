@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package market;
+
+import "order.proto";
+
+message Trade {
+  string trade_id = 1;
+  double price = 2;
+  int64 quantity = 3;
+  OrderSide aggressor_side = 4;
+  string aggressor_order_id = 5;
+  string resting_order_id = 6;
+  uint64 timestamp = 7;
+}
+
+message TopOfBook {
+  optional double bid_price = 1;
+  optional int64 bid_quantity = 2;
+  optional double ask_price = 3;
+  optional int64 ask_quantity = 4;
+  uint64 timestamp = 5;
+}
+
+message MarketDataEvent {
+  oneof event {
+    Trade trade = 1;
+    TopOfBook top_of_book = 2;
+  }
+}
+
+message SubscribeRequest {
+  string node_id = 1;
+}
+
+service MarketData {
+  rpc Subscribe(SubscribeRequest) returns (stream MarketDataEvent);
+}

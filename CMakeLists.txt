@@ -38,6 +38,7 @@ add_executable(exchangeService
     exchange/OrderProcessor/service/exchangeService.cpp
     exchange/OrderProcessor/engine/orderBook.cpp
     exchange/OrderProcessor/engine/matchingEngine.cpp
+    exchange/OrderProcessor/engine/marketDataPublisher.cpp
     ${PROTO_SRCS}
     ${GRPC_SRCS}
 )

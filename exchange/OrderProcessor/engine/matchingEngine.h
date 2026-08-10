@@ -4,10 +4,12 @@
 #include "exchange/OrderProcessor/repo/mpscqueue.h"
 #include "exchange/OrderProcessor/engine/queueMessage.h"
 #include "exchange/OrderProcessor/engine/orderBook.h"
+#include "exchange/OrderProcessor/engine/marketDataPublisher.h"
 
 class MatchingEngine {
 public:
-    explicit MatchingEngine(MPSCQueue<QueueMessage>& queue) : _queue(queue), _running(false) {}
+    MatchingEngine(MPSCQueue<QueueMessage>& queue, MarketDataPublisher& publisher)
+        : _queue(queue), _publisher(publisher), _running(false) {}
 
     void start() {
         _running.store(true);
@@ -32,6 +34,7 @@ public:
 
 private:
     MPSCQueue<QueueMessage>& _queue;
+    MarketDataPublisher& _publisher;
     OrderBook _book;
     std::thread _worker;
     std::atomic<bool> _running;
