@@ -124,9 +124,9 @@ public:
 
 
         if (n->isSet.load() == State::SET) {
+            data = n->data;
             headOfQueue->head++;
             moveToNextBuffer();
-            data = n->data;
             return true;
         }
 
