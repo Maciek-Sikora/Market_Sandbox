@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 400" role="img"
+     aria-label="An order book depth ladder with four ask levels above the spread and four bid levels below, each showing a row of small blocks representing individually resting FIFO orders; an incoming bid order crosses the spread and fills the oldest resting order at the best ask.">
+  <title>Market_Sandbox price-time priority ladder</title>
+  <style>
+    .bg { fill:#ffffff; }
+    .block { fill:#f2f4f8; stroke:#c7cfdc; stroke-width:1; }
+    .price { fill:#1c2330; font-family:"Consolas","Menlo",monospace; font-size:13px; font-weight:700; }
+    .price-ask { fill:#a83b2e; }
+    .price-bid { fill:#2e7d4f; }
+    .qty { fill:#5b6478; font-family:"Consolas","Menlo",monospace; font-size:10.5px; }
+    .section { fill:#5b6478; font-family:"Consolas","Menlo",monospace; font-size:10px; letter-spacing:0.08em; }
+    .edge { stroke:#7d8598; stroke-width:1.4; fill:none; }
+    .label { fill:#4b5468; font-family:"Consolas","Menlo",monospace; font-size:11px; }
+    .fillmark { font-family:"Consolas","Menlo",monospace; font-size:9px; fill:#ffffff; }
+  </style>
+  <defs>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7d8598"></path>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="560" height="400"></rect>
+
+  <text x="20" y="26" class="section">ASKS (low → high = best first)</text>
+
+  <!-- asks: worst to best, top to bottom -->
+  <g transform="translate(0,36)">
+    <text x="20" y="20" class="price">101.20</text>
+    <text x="225" y="20" text-anchor="end" class="qty">qty 18</text>
+    <rect x="230" y="8" width="26" height="16" rx="2" class="block"></rect>
+    <rect x="260" y="8" width="26" height="16" rx="2" class="block"></rect>
+    <rect x="290" y="8" width="26" height="16" rx="2" class="block"></rect>
+  </g>
+  <g transform="translate(0,68)">
+    <text x="20" y="20" class="price">101.05</text>
+    <text x="225" y="20" text-anchor="end" class="qty">qty 22</text>
+    <rect x="230" y="8" width="26" height="16" rx="2" class="block"></rect>
+    <rect x="260" y="8" width="26" height="16" rx="2" class="block"></rect>
+  </g>
+  <g transform="translate(0,100)">
+    <text x="20" y="20" class="price">100.95</text>
+    <text x="225" y="20" text-anchor="end" class="qty">qty 15</text>
+    <rect x="230" y="8" width="26" height="16" rx="2" class="block"></rect>
+    <rect x="260" y="8" width="26" height="16" rx="2" class="block"></rect>
+    <rect x="290" y="8" width="26" height="16" rx="2" class="block"></rect>
+  </g>
+  <g transform="translate(0,132)">
+    <text x="20" y="20" class="price price-ask">100.85</text>
+    <text x="225" y="20" text-anchor="end" class="qty">best ask · qty 9</text>
+    <rect x="230" y="8" width="26" height="16" rx="2" style="fill:#a83b2e; stroke:#a83b2e"></rect>
+    <rect x="260" y="8" width="26" height="16" rx="2" class="block"></rect>
+    <text x="243" y="20" text-anchor="middle" class="fillmark">✓</text>
+  </g>
+
+  <line x1="20" y1="182" x2="536" y2="182" class="edge" style="stroke-dasharray:2 4"></line>
+  <text x="278" y="178" text-anchor="middle" class="label" style="font-size:9.5px">spread 0.15</text>
+
+  <!-- bids: best to worst, top to bottom -->
+  <g transform="translate(0,196)">
+    <text x="20" y="20" class="price price-bid">100.70</text>
+    <text x="225" y="20" text-anchor="end" class="qty">best bid · qty 12</text>
+    <rect x="230" y="8" width="26" height="16" rx="2" style="fill:#2e7d4f; stroke:#2e7d4f"></rect>
+    <rect x="260" y="8" width="26" height="16" rx="2" class="block"></rect>
+    <rect x="290" y="8" width="26" height="16" rx="2" class="block"></rect>
+  </g>
+  <g transform="translate(0,228)">
+    <text x="20" y="20" class="price">100.55</text>
+    <text x="225" y="20" text-anchor="end" class="qty">qty 20</text>
+    <rect x="230" y="8" width="26" height="16" rx="2" class="block"></rect>
+    <rect x="260" y="8" width="26" height="16" rx="2" class="block"></rect>
+  </g>
+  <g transform="translate(0,260)">
+    <text x="20" y="20" class="price">100.40</text>
+    <text x="225" y="20" text-anchor="end" class="qty">qty 17</text>
+    <rect x="230" y="8" width="26" height="16" rx="2" class="block"></rect>
+    <rect x="260" y="8" width="26" height="16" rx="2" class="block"></rect>
+    <rect x="290" y="8" width="26" height="16" rx="2" class="block"></rect>
+  </g>
+  <g transform="translate(0,292)">
+    <text x="20" y="20" class="price">100.25</text>
+    <text x="225" y="20" text-anchor="end" class="qty">qty 25</text>
+    <rect x="230" y="8" width="26" height="16" rx="2" class="block"></rect>
+    <rect x="260" y="8" width="26" height="16" rx="2" class="block"></rect>
+    <rect x="290" y="8" width="26" height="16" rx="2" class="block"></rect>
+  </g>
+  <text x="20" y="340" class="section">BIDS (high → low = best first)</text>
+
+  <path d="M 480 108 C 420 108, 340 128, 300 140" class="edge" marker-end="url(#arrow2)"></path>
+  <text x="480" y="97" text-anchor="end" class="label">incoming LIMIT bid, crosses</text>
+</svg>

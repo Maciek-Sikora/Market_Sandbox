@@ -1,0 +1,773 @@
+<title>Market_Sandbox — a lock-free matching engine, alive with bots</title>
+<meta name="description" content="A price-time-priority exchange in C++17: a hand-rolled lock-free MPSC queue, a single busy-spinning matching thread, gRPC order entry and streaming market data, and five algorithmic bots trading against each other.">
+<style>
+:root{
+  --bg:#eef1f7;
+  --surface:#ffffff;
+  --surface-2:#e4e9f3;
+  --ink:#10182b;
+  --ink-dim:#4c5670;
+  --ink-faint:#7c869e;
+  --accent:#a86a16;
+  --accent-ink:#7a4d0f;
+  --bid:#178a56;
+  --ask:#b8402f;
+  --rule:#d7deeb;
+  --rule-strong:#c2cbdd;
+  --shadow: 0 1px 2px rgba(16,24,43,0.06), 0 8px 24px -12px rgba(16,24,43,0.18);
+  --mono: "JetBrains Mono","IBM Plex Mono","SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  --sans: "IBM Plex Sans","Segoe UI","Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#090d16;
+    --surface:#111827;
+    --surface-2:#182036;
+    --ink:#e9edf7;
+    --ink-dim:#98a3bf;
+    --ink-faint:#5f6a86;
+    --accent:#e3a64c;
+    --accent-ink:#f2c274;
+    --bid:#57c78d;
+    --ask:#e57567;
+    --rule:#232c46;
+    --rule-strong:#2e3a5c;
+    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 12px 28px -14px rgba(0,0,0,0.6);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#090d16;
+  --surface:#111827;
+  --surface-2:#182036;
+  --ink:#e9edf7;
+  --ink-dim:#98a3bf;
+  --ink-faint:#5f6a86;
+  --accent:#e3a64c;
+  --accent-ink:#f2c274;
+  --bid:#57c78d;
+  --ask:#e57567;
+  --rule:#232c46;
+  --rule-strong:#2e3a5c;
+  --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 12px 28px -14px rgba(0,0,0,0.6);
+}
+
+*{box-sizing:border-box;}
+html{-webkit-text-size-adjust:100%;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{ background:var(--accent); color:#1a1206; }
+
+a{ color:var(--accent-ink); }
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
+
+.wrap{ max-width:1040px; margin:0 auto; padding:0 28px; }
+.wrap-wide{ max-width:1180px; margin:0 auto; padding:0 28px; }
+
+h1,h2,h3{ font-family:var(--mono); font-weight:700; text-wrap:balance; letter-spacing:-0.01em; margin:0; }
+h2{ font-size:clamp(1.5rem, 1.1rem + 1.6vw, 2.1rem); }
+h3{ font-size:1.05rem; }
+p{ margin:0; color:var(--ink-dim); max-width:65ch; }
+.lede{ font-size:1.1rem; color:var(--ink); max-width:58ch; }
+
+.eyebrow{
+  font-family:var(--mono);
+  font-size:0.78rem;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--accent-ink);
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.eyebrow::before{
+  content:"";
+  width:18px; height:1px;
+  background:var(--accent);
+  display:inline-block;
+}
+
+.tnum{ font-variant-numeric:tabular-nums; }
+
+/* ---------- header / nav ---------- */
+.topbar{
+  position:sticky; top:0; z-index:40;
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--rule);
+}
+.topbar-inner{
+  max-width:1180px; margin:0 auto; padding:14px 28px;
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+}
+.brand{ font-family:var(--mono); font-weight:700; font-size:0.95rem; display:flex; align-items:center; gap:10px; }
+.brand-dot{ width:9px; height:9px; border-radius:50%; background:var(--bid); box-shadow:0 0 0 3px color-mix(in srgb, var(--bid) 25%, transparent); }
+.topnav{ display:flex; gap:22px; font-family:var(--mono); font-size:0.82rem; }
+.topnav a{ color:var(--ink-dim); text-decoration:none; }
+.topnav a:hover{ color:var(--ink); }
+@media (max-width:640px){ .topnav{ display:none; } }
+
+/* ---------- hero ---------- */
+.hero{
+  position:relative;
+  overflow:hidden;
+  border-bottom:1px solid var(--rule);
+  background:
+    radial-gradient(ellipse 900px 500px at 82% -10%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
+    var(--bg);
+}
+#heroCanvas{
+  position:absolute; inset:0; width:100%; height:100%;
+  opacity:0.55;
+  pointer-events:none;
+}
+.hero-inner{ position:relative; padding:88px 28px 40px; }
+.hero h1{
+  font-size:clamp(2.1rem, 1.5rem + 2.6vw, 3.4rem);
+  line-height:1.06;
+  max-width:16ch;
+}
+.hero h1 em{ font-style:normal; color:var(--accent-ink); }
+.hero p.lede{ margin-top:18px; }
+.hero-cta{ display:flex; gap:12px; margin-top:30px; flex-wrap:wrap; }
+.btn{
+  font-family:var(--mono); font-size:0.85rem; font-weight:600;
+  padding:11px 18px; border-radius:3px; text-decoration:none;
+  border:1px solid var(--rule-strong);
+  color:var(--ink);
+  display:inline-flex; align-items:center; gap:8px;
+}
+.btn-primary{ background:var(--accent); border-color:var(--accent); color:#1a1206; }
+
+.chips{ display:flex; flex-wrap:wrap; gap:10px; margin-top:44px; }
+.chip{
+  font-family:var(--mono); font-size:0.78rem;
+  background:var(--surface); border:1px solid var(--rule);
+  border-radius:3px; padding:8px 12px;
+  display:flex; align-items:baseline; gap:8px;
+  box-shadow:var(--shadow);
+}
+.chip b{ color:var(--accent-ink); font-size:0.92rem; }
+
+/* ticker tape */
+.ticker{
+  position:relative;
+  border-top:1px solid var(--rule);
+  background:var(--surface);
+  overflow:hidden;
+  white-space:nowrap;
+}
+.ticker::before,.ticker::after{
+  content:""; position:absolute; top:0; bottom:0; width:60px; z-index:2;
+}
+.ticker::before{ left:0; background:linear-gradient(90deg, var(--surface), transparent); }
+.ticker::after{ right:0; background:linear-gradient(270deg, var(--surface), transparent); }
+.ticker-track{
+  display:inline-flex; gap:0;
+  animation: ticker-scroll 34s linear infinite;
+  padding:10px 0;
+}
+.ticker-item{
+  font-family:var(--mono); font-size:0.8rem;
+  padding:0 22px; color:var(--ink-dim);
+  border-right:1px solid var(--rule);
+}
+.ticker-item .up{ color:var(--bid); }
+.ticker-item .dn{ color:var(--ask); }
+@keyframes ticker-scroll{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
+@media (prefers-reduced-motion: reduce){
+  .ticker-track{ animation:none; }
+  #heroCanvas{ display:none; }
+}
+
+/* ---------- sections ---------- */
+section{ padding:76px 0; border-bottom:1px solid var(--rule); }
+section:last-of-type{ border-bottom:none; }
+.section-head{ max-width:60ch; margin-bottom:40px; display:flex; flex-direction:column; gap:12px; }
+
+figure{ margin:0; }
+figcaption{
+  margin-top:16px; font-size:0.88rem; color:var(--ink-faint);
+  max-width:70ch;
+}
+figcaption b{ color:var(--ink-dim); font-weight:600; }
+
+.diagram-frame{
+  background:var(--surface); border:1px solid var(--rule);
+  border-radius:6px; padding:20px; box-shadow:var(--shadow);
+  overflow-x:auto;
+}
+svg.diagram{ width:100%; height:auto; display:block; min-width:640px; }
+.dbox{ fill:var(--surface-2); stroke:var(--rule-strong); stroke-width:1; }
+.dbox-ghost{ fill:var(--surface-2); stroke:var(--rule); stroke-width:1; opacity:0.55; }
+.dbox-accent{ fill:color-mix(in srgb, var(--accent) 14%, var(--surface-2)); stroke:var(--accent); }
+.dtext{ fill:var(--ink); font-family:var(--mono); font-size:12.5px; }
+.dtext-sub{ fill:var(--ink-faint); font-family:var(--mono); font-size:10.5px; }
+.dlabel{ fill:var(--ink-dim); font-family:var(--mono); font-size:11px; }
+.dlabel-accent{ fill:var(--accent-ink); font-family:var(--mono); font-size:11px; }
+.dedge{ stroke:var(--ink-faint); stroke-width:1.4; fill:none; }
+.dedge-dash{ stroke:var(--ink-faint); stroke-width:1.4; fill:none; stroke-dasharray:5 4; }
+.dedge-broadcast{ stroke:var(--accent); stroke-width:1.6; fill:none; stroke-dasharray:1.5 4; stroke-linecap:round; }
+.dprice{ fill:var(--ink); font-family:var(--mono); font-size:13px; font-weight:700; }
+.dqty{ fill:var(--ink-faint); font-family:var(--mono); font-size:10.5px; }
+
+/* mechanism / architecture prose grid */
+.mech-grid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-top:36px; }
+@media (max-width:860px){ .mech-grid{ grid-template-columns:repeat(2,1fr); } }
+.mech-card{
+  background:var(--surface); border:1px solid var(--rule); border-radius:6px;
+  padding:16px; display:flex; flex-direction:column; gap:8px;
+}
+.mech-card .k{ font-family:var(--mono); font-size:0.72rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-faint); }
+.mech-card .v{ font-family:var(--mono); font-size:0.92rem; color:var(--ink); }
+.mech-card p{ font-size:0.85rem; }
+
+/* strategy cards */
+.strat-grid{ display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; margin-top:36px; }
+@media (max-width:900px){ .strat-grid{ grid-template-columns:repeat(2,1fr); } }
+@media (max-width:600px){ .strat-grid{ grid-template-columns:1fr; } }
+.strat-card{
+  background:var(--surface); border:1px solid var(--rule); border-radius:8px;
+  padding:22px; display:flex; flex-direction:column; gap:12px;
+  position:relative;
+}
+.strat-card .tag{
+  font-family:var(--mono); font-size:0.7rem; letter-spacing:0.08em; text-transform:uppercase;
+  color:var(--accent-ink); display:inline-flex; align-items:center; gap:7px;
+}
+.strat-swatch{ width:9px; height:9px; border-radius:2px; background:var(--accent); flex:none; }
+.strat-card h3{ font-size:1.02rem; }
+.strat-card p{ font-size:0.87rem; }
+.strat-flags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:auto; padding-top:6px; }
+.flag{
+  font-family:var(--mono); font-size:0.68rem; color:var(--ink-faint);
+  border:1px solid var(--rule); border-radius:3px; padding:3px 7px;
+}
+.strat-card.replay{ border-color:color-mix(in srgb, var(--accent) 40%, var(--rule)); }
+.strat-card.replay .tag{ color:var(--accent-ink); }
+
+/* performance / KPI */
+.kpi-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:36px; }
+@media (max-width:760px){ .kpi-row{ grid-template-columns:repeat(2,1fr); } }
+.kpi{
+  background:var(--surface); border:1px solid var(--rule); border-radius:6px;
+  padding:18px 18px 16px;
+}
+.kpi .label{ font-family:var(--mono); font-size:0.72rem; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.05em; }
+.kpi .value{ font-family:var(--mono); font-weight:700; font-size:1.7rem; color:var(--ink); margin-top:8px; font-variant-numeric:tabular-nums; }
+.kpi .value small{ font-size:0.95rem; color:var(--ink-faint); font-weight:500; margin-left:3px; }
+.kpi .sub{ font-family:var(--mono); font-size:0.74rem; color:var(--ink-faint); margin-top:6px; }
+
+.chart-block{
+  background:var(--surface); border:1px solid var(--rule); border-radius:6px;
+  padding:24px 26px; margin-top:24px;
+}
+.chart-title{ font-family:var(--mono); font-size:0.82rem; color:var(--ink-dim); margin-bottom:18px; }
+.bar-row{ display:grid; grid-template-columns:64px 1fr 74px; align-items:center; gap:12px; margin-bottom:10px; }
+.bar-row .cat{ font-family:var(--mono); font-size:0.78rem; color:var(--ink-faint); text-align:right; }
+.bar-track{ position:relative; height:20px; background:transparent; }
+.bar-grid-line{ position:absolute; top:0; bottom:0; width:1px; background:var(--rule); }
+.bar-fill{
+  height:20px; border-radius:4px 4px 4px 0;
+  background:var(--accent);
+}
+.bar-row .val{ font-family:var(--mono); font-size:0.8rem; color:var(--ink); font-variant-numeric:tabular-nums; }
+
+.method{
+  margin-top:22px; padding-top:18px; border-top:1px solid var(--rule);
+  font-size:0.83rem; color:var(--ink-faint); max-width:75ch;
+}
+.method b{ color:var(--ink-dim); }
+
+/* footer */
+footer{ padding:48px 0 64px; }
+.foot-grid{ display:flex; justify-content:space-between; align-items:flex-end; gap:24px; flex-wrap:wrap; }
+.stack-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+.stack-chip{
+  font-family:var(--mono); font-size:0.74rem; color:var(--ink-dim);
+  border:1px solid var(--rule); border-radius:3px; padding:5px 9px;
+}
+footer .note{ font-family:var(--mono); font-size:0.76rem; color:var(--ink-faint); max-width:44ch; }
+
+.two-col{ display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:start; }
+@media (max-width:860px){ .two-col{ grid-template-columns:1fr; } }
+</style>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><span class="brand-dot"></span>MARKET_SANDBOX</div>
+    <nav class="topnav">
+      <a href="#mechanism">Mechanism</a>
+      <a href="#book">Order book</a>
+      <a href="#bots">Bots</a>
+      <a href="#perf">Performance</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <canvas id="heroCanvas"></canvas>
+  <div class="hero-inner wrap-wide">
+    <div class="eyebrow">C++17 · gRPC · lock-free</div>
+    <h1>A matching engine with <em>nothing</em> to hide behind a mutex.</h1>
+    <p class="lede">One hand-rolled MPSC queue feeds a single busy-spinning thread that runs a price-time-priority order book. Around it: gRPC order entry, a live trade &amp; top-of-book stream, and five algorithmic bots that never stop trading against each other.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="#mechanism">See the mechanism →</a>
+      <a class="btn" href="#perf">Jump to the numbers</a>
+    </div>
+    <div class="chips">
+      <div class="chip"><b>70.2M</b> queue ops/sec</div>
+      <div class="chip"><b>0.152ms</b> p50 order latency</div>
+      <div class="chip"><b>16.4K</b> orders/sec, 8 clients</div>
+      <div class="chip"><b>5</b> trading strategies, 1 binary</div>
+    </div>
+  </div>
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track" id="tickerTrack"></div>
+  </div>
+</header>
+
+<main>
+  <section id="mechanism">
+    <div class="wrap-wide">
+      <div class="section-head">
+        <div class="eyebrow">01 — Mechanism</div>
+        <h2>What happens between SubmitOrder and the response</h2>
+        <p>A gRPC handler thread never touches the book directly. It hands the order to a lock-free queue and blocks on a promise — the reply comes back through that promise, not back through the queue. Fills fan out to every subscriber on a completely separate path.</p>
+      </div>
+
+      <div class="diagram-frame">
+        <svg class="diagram" viewBox="0 0 950 486" role="img" aria-label="Diagram: trading nodes call the gRPC service, which enqueues onto a lock-free MPSC queue; a single matching-engine thread dequeues, matches against the order book, then unblocks the waiting client via a promise while separately publishing trade and top-of-book events to every subscribed node.">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-faint)"></path>
+            </marker>
+            <marker id="arrowAccent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"></path>
+            </marker>
+          </defs>
+
+          <!-- Trading nodes: stacked rects -->
+          <rect x="36" y="188" width="150" height="64" rx="6" class="dbox-ghost"></rect>
+          <rect x="28" y="180" width="150" height="64" rx="6" class="dbox-ghost"></rect>
+          <rect x="20" y="172" width="150" height="64" rx="6" class="dbox"></rect>
+          <text x="95" y="200" text-anchor="middle" class="dtext">Trading Nodes</text>
+          <text x="95" y="216" text-anchor="middle" class="dtext-sub">node.exe × N</text>
+          <text x="95" y="230" text-anchor="middle" class="dtext-sub">market-maker · momentum</text>
+          <text x="95" y="242" text-anchor="middle" class="dtext-sub">mean-rev · noise · replay</text>
+
+          <!-- gRPC Service -->
+          <rect x="210" y="172" width="150" height="64" rx="6" class="dbox"></rect>
+          <text x="285" y="200" text-anchor="middle" class="dtext">gRPC Service</text>
+          <text x="285" y="216" text-anchor="middle" class="dtext-sub">SubmitOrder</text>
+          <text x="285" y="228" text-anchor="middle" class="dtext-sub">CancelOrder · Subscribe</text>
+
+          <!-- MPSC Queue -->
+          <rect x="400" y="172" width="150" height="64" rx="6" class="dbox-accent"></rect>
+          <text x="475" y="200" text-anchor="middle" class="dtext">MPSC Queue</text>
+          <text x="475" y="216" text-anchor="middle" class="dtext-sub">buffer-list, CAS-linked</text>
+          <text x="475" y="228" text-anchor="middle" class="dtext-sub">many producers → one consumer</text>
+
+          <!-- Matching Engine -->
+          <rect x="590" y="172" width="150" height="64" rx="6" class="dbox"></rect>
+          <text x="665" y="200" text-anchor="middle" class="dtext">Matching Engine</text>
+          <text x="665" y="216" text-anchor="middle" class="dtext-sub">1 thread, busy-spin dequeue</text>
+          <text x="665" y="228" text-anchor="middle" class="dtext-sub">no sleep on the hot path</text>
+
+          <!-- Order Book -->
+          <rect x="780" y="172" width="150" height="64" rx="6" class="dbox"></rect>
+          <text x="855" y="200" text-anchor="middle" class="dtext">Order Book</text>
+          <text x="855" y="216" text-anchor="middle" class="dtext-sub">price-time priority</text>
+          <text x="855" y="228" text-anchor="middle" class="dtext-sub">std::map × std::list</text>
+
+          <!-- Market Data Publisher -->
+          <rect x="780" y="330" width="150" height="64" rx="6" class="dbox-accent"></rect>
+          <text x="855" y="358" text-anchor="middle" class="dtext">Market Data</text>
+          <text x="855" y="372" text-anchor="middle" class="dtext-sub">Publisher</text>
+          <text x="855" y="386" text-anchor="middle" class="dtext-sub">1 MPSCQueue per subscriber</text>
+
+          <!-- forward path -->
+          <line x1="170" y1="192" x2="208" y2="192" class="dedge" marker-end="url(#arrow)"></line>
+          <text x="189" y="184" text-anchor="middle" class="dlabel" style="font-size:9.5px">call</text>
+
+          <line x1="360" y1="192" x2="398" y2="192" class="dedge" marker-end="url(#arrow)"></line>
+          <text x="379" y="184" text-anchor="middle" class="dlabel" style="font-size:9.5px">enqueue</text>
+
+          <line x1="550" y1="192" x2="588" y2="192" class="dedge" marker-end="url(#arrow)"></line>
+          <text x="569" y="184" text-anchor="middle" class="dlabel" style="font-size:9.5px">dequeue</text>
+
+          <line x1="740" y1="192" x2="778" y2="192" class="dedge" marker-end="url(#arrow)"></line>
+          <text x="759" y="184" text-anchor="middle" class="dlabel" style="font-size:9.5px">match</text>
+
+          <!-- return path (dashed), curved under B4..B2 -->
+          <path d="M 665 236 C 665 300, 285 300, 285 238" class="dedge-dash" marker-end="url(#arrow)"></path>
+          <text x="475" y="312" text-anchor="middle" class="dlabel">set_value(EngineResult) — unblocks the handler thread</text>
+
+          <path d="M 210 226 C 190 250, 170 250, 172 246" class="dedge-dash" marker-end="url(#arrow)"></path>
+          <text x="150" y="266" text-anchor="middle" class="dlabel" style="font-size:9.5px">reply</text>
+
+          <!-- order book -> publisher -->
+          <line x1="855" y1="236" x2="855" y2="328" class="dedge" marker-end="url(#arrow)"></line>
+          <text x="882" y="286" text-anchor="middle" class="dlabel" style="font-size:9.5px" transform="rotate(90 882 286)">events</text>
+
+          <!-- broadcast path (accent dotted), curved all the way back -->
+          <path d="M 780 362 C 500 412, 260 412, 130 246" class="dedge-broadcast" marker-end="url(#arrowAccent)"></path>
+          <text x="470" y="434" text-anchor="middle" class="dlabel-accent">MarketDataEvent stream — broadcast to every subscribed node</text>
+
+          <!-- legend -->
+          <line x1="20" y1="458" x2="46" y2="458" class="dedge"></line>
+          <text x="52" y="462" class="dlabel" style="font-size:9.5px">request</text>
+          <line x1="118" y1="458" x2="144" y2="458" class="dedge-dash"></line>
+          <text x="150" y="462" class="dlabel" style="font-size:9.5px">sync reply</text>
+          <line x1="222" y1="458" x2="248" y2="458" class="dedge-broadcast"></line>
+          <text x="254" y="462" class="dlabel-accent" style="font-size:9.5px">async broadcast</text>
+        </svg>
+      </div>
+      <figcaption><b>The reply never re-enters the queue.</b> A <code>std::promise&lt;EngineResult&gt;</code> travels inside the queued message; the matching thread calls <code>set_value()</code> directly, which wakes the exact gRPC handler thread that's still blocked on <code>future.get()</code>. Trade prints and top-of-book snapshots take a completely separate route — one lock-free queue per <code>Subscribe</code> connection, fed by the same matching thread after it replies.</figcaption>
+
+      <div class="mech-grid">
+        <div class="mech-card">
+          <div class="k">Queue topology</div>
+          <div class="v">buffer-list, 1620/segment</div>
+          <p>Producers race a CAS to extend the linked list of fixed buffers; the single consumer scans ahead and folds fully-drained segments back into a garbage list for reuse.</p>
+        </div>
+        <div class="mech-card">
+          <div class="k">Consumer loop</div>
+          <div class="v">busy-spin, no sleep</div>
+          <p>The matching thread is the only thing standing between an <code>enqueue()</code> and a blocked client — it costs one core at ~100%, spent deliberately on latency instead of CPU headroom.</p>
+        </div>
+        <div class="mech-card">
+          <div class="k">Book structure</div>
+          <div class="v">std::map&lt;price, std::list&lt;Order&gt;&gt;</div>
+          <p>Bids sorted high→low, asks low→high; <code>std::list</code> specifically so a cancel elsewhere never invalidates the iterator an order's id maps to.</p>
+        </div>
+        <div class="mech-card">
+          <div class="k">Fan-out</div>
+          <div class="v">1 queue per subscriber</div>
+          <p>Every <code>Subscribe</code> stream gets its own <code>MPSCQueue&lt;MarketEvent&gt;</code> — the same primitive that feeds the matching engine, reused because the topology is trivially single-producer.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="book">
+    <div class="wrap-wide two-col">
+      <div>
+        <div class="section-head">
+          <div class="eyebrow">02 — Price-time priority</div>
+          <h2>Whoever quotes first, fills first</h2>
+          <p>Each price level is a FIFO list. An incoming order walks the opposite book from the best price outward, consuming resting orders oldest-first at every level it crosses — partial fills keep their place in line rather than losing priority.</p>
+        </div>
+        <p style="margin-top:22px; font-size:0.92rem;">A <code>LIMIT</code> that doesn't fully cross rests at its price. A <code>MARKET</code> order that can't fully fill is rejected outright — quantity that did execute still gets reported, but nothing is left resting.</p>
+      </div>
+
+      <figure>
+        <div class="diagram-frame">
+          <svg class="diagram" viewBox="0 0 560 400" role="img" aria-label="Diagram: an order book depth ladder with four ask levels above the spread and four bid levels below, each showing a row of small blocks representing individually resting FIFO orders; an incoming bid order crosses the spread and fills the oldest resting order at the best ask.">
+            <text x="20" y="26" class="dlabel" style="font-size:10px; letter-spacing:0.08em;">ASKS (low → high = best first)</text>
+
+            <!-- asks: worst to best, top to bottom -->
+            <g transform="translate(0,36)">
+              <text x="20" y="20" class="dprice">101.20</text>
+              <text x="90" y="20" class="dqty">qty 18</text>
+              <rect x="150" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+              <rect x="180" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+              <rect x="210" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+            </g>
+            <g transform="translate(0,68)">
+              <text x="20" y="20" class="dprice">101.05</text>
+              <text x="90" y="20" class="dqty">qty 22</text>
+              <rect x="150" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+              <rect x="180" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+            </g>
+            <g transform="translate(0,100)">
+              <text x="20" y="20" class="dprice">100.95</text>
+              <text x="90" y="20" class="dqty">qty 15</text>
+              <rect x="150" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+              <rect x="180" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+              <rect x="210" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+            </g>
+            <g transform="translate(0,132)">
+              <text x="20" y="20" class="dprice" style="fill:var(--ask)">100.85</text>
+              <text x="90" y="20" class="dqty">best ask · qty 9</text>
+              <rect x="150" y="8" width="26" height="16" rx="2" style="fill:var(--ask); stroke:var(--ask)"></rect>
+              <rect x="180" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+              <text x="163" y="20" text-anchor="middle" style="font-family:var(--mono); font-size:9px; fill:#160604;">✓</text>
+            </g>
+
+            <line x1="20" y1="182" x2="536" y2="182" class="dedge" style="stroke-dasharray:2 4"></line>
+            <text x="278" y="178" text-anchor="middle" class="dlabel" style="font-size:9.5px">spread 0.15</text>
+
+            <!-- bids: best to worst, top to bottom -->
+            <g transform="translate(0,196)">
+              <text x="20" y="20" class="dprice" style="fill:var(--bid)">100.70</text>
+              <text x="90" y="20" class="dqty">best bid · qty 12</text>
+              <rect x="150" y="8" width="26" height="16" rx="2" style="fill:var(--bid); stroke:var(--bid)"></rect>
+              <rect x="180" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+              <rect x="210" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+            </g>
+            <g transform="translate(0,228)">
+              <text x="20" y="20" class="dprice">100.55</text>
+              <text x="90" y="20" class="dqty">qty 20</text>
+              <rect x="150" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+              <rect x="180" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+            </g>
+            <g transform="translate(0,260)">
+              <text x="20" y="20" class="dprice">100.40</text>
+              <text x="90" y="20" class="dqty">qty 17</text>
+              <rect x="150" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+              <rect x="180" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+              <rect x="210" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+            </g>
+            <g transform="translate(0,292)">
+              <text x="20" y="20" class="dprice">100.25</text>
+              <text x="90" y="20" class="dqty">qty 25</text>
+              <rect x="150" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+              <rect x="180" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+              <rect x="210" y="8" width="26" height="16" rx="2" class="dbox-ghost"></rect>
+            </g>
+            <text x="20" y="340" class="dlabel" style="font-size:10px; letter-spacing:0.08em;">BIDS (high → low = best first)</text>
+
+            <path d="M 480 108 C 420 108, 340 128, 250 140" class="dedge" marker-end="url(#arrow)"></path>
+            <text x="480" y="97" text-anchor="end" class="dlabel">incoming LIMIT bid, crosses</text>
+          </svg>
+        </div>
+        <figcaption>Each block is one resting order at that price level; the leftmost is oldest. The incoming bid crosses the spread and takes the <b>oldest</b> order at 100.85 first — a later, larger order at the same price still waits its turn.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="bots">
+    <div class="wrap-wide">
+      <div class="section-head">
+        <div class="eyebrow">03 — One binary, five personalities</div>
+        <h2>The bots that keep the book honest</h2>
+        <p><code>node.exe --strategy=&lt;name&gt;</code> is the only client program — every strategy below is a flag, sharing one gRPC client and one <code>Subscribe</code> listener. A PowerShell launcher starts ten of them at once against the same book.</p>
+      </div>
+
+      <div class="strat-grid">
+        <div class="strat-card">
+          <div class="tag"><span class="strat-swatch"></span>market-maker</div>
+          <h3>Quotes both sides, always</h3>
+          <p>Rests a bid and an ask around the current mid, re-quoting whenever price drifts past a threshold. The default source of resting liquidity everyone else trades against.</p>
+          <div class="strat-flags"><span class="flag">--mm-spread</span><span class="flag">--mm-size</span><span class="flag">--mm-requote-threshold-pct</span></div>
+        </div>
+        <div class="strat-card">
+          <div class="tag"><span class="strat-swatch"></span>momentum</div>
+          <h3>Chases the last N trades</h3>
+          <p>Tracks a rolling trade-price window; a market order fires in the direction of the recent trend once it clears a threshold return.</p>
+          <div class="strat-flags"><span class="flag">--mom-window</span><span class="flag">--mom-threshold-pct</span></div>
+        </div>
+        <div class="strat-card">
+          <div class="tag"><span class="strat-swatch"></span>mean-reversion</div>
+          <h3>Bets against the drift</h3>
+          <p>Same rolling window, opposite conviction — a limit order fades price once it strays too far from its own moving average.</p>
+          <div class="strat-flags"><span class="flag">--mr-window</span><span class="flag">--mr-deviation-pct</span></div>
+        </div>
+        <div class="strat-card">
+          <div class="tag"><span class="strat-swatch"></span>noise</div>
+          <h3>Randomized activity generator</h3>
+          <p>Random side, size and price jitter on a probability gate each tick, with a standing chance to cancel its own resting orders. Pure liquidity noise — the busiest bot in the room.</p>
+          <div class="strat-flags"><span class="flag">--noise-action-prob</span><span class="flag">--noise-cancel-prob</span></div>
+        </div>
+        <div class="strat-card replay">
+          <div class="tag"><span class="strat-swatch"></span>replay</div>
+          <h3>Drives the book on a script</h3>
+          <p>Loads a bundled CSV of (offset, price) checkpoints and nudges the market toward each one on an accelerated clock — a deterministic scenario, not a reaction to it.</p>
+          <div class="strat-flags"><span class="flag">--replay-file</span><span class="flag">--replay-speed</span><span class="flag">--replay-loop</span></div>
+        </div>
+        <div class="strat-card">
+          <div class="tag"><span class="strat-swatch"></span>launch_nodes.ps1</div>
+          <h3>2 makers · 2 momentum · 1 mean-rev · 4 noise · 1 replay</h3>
+          <p>Ten processes, one exchange, one book — the mix this repo ships with to make a demo feel like a real session rather than a unit test.</p>
+          <div class="strat-flags"><span class="flag">node.exe × 10</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="perf">
+    <div class="wrap-wide">
+      <div class="section-head">
+        <div class="eyebrow">04 — Measured, not marketed</div>
+        <h2>What it actually does on one dev machine</h2>
+        <p>No synthetic marketing numbers — these came out of two small benchmark binaries in this repo, run against a live <code>exchangeService.exe</code> over loopback gRPC.</p>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="label">MPSC queue · single thread</div>
+          <div class="value tnum">70.2<small>M ops/sec</small></div>
+          <div class="sub">4,000,000 enqueue+dequeue ops</div>
+        </div>
+        <div class="kpi">
+          <div class="label">MPSC queue · 4 producers</div>
+          <div class="value tnum">22.2<small>M ops/sec</small></div>
+          <div class="sub">2,000,000 ops, 1 consumer thread</div>
+        </div>
+        <div class="kpi">
+          <div class="label">SubmitOrder · sequential</div>
+          <div class="value tnum">6,162<small>req/sec</small></div>
+          <div class="sub">1 client, 1 call at a time</div>
+        </div>
+        <div class="kpi">
+          <div class="label">SubmitOrder · concurrent</div>
+          <div class="value tnum">16,410<small>req/sec</small></div>
+          <div class="sub">8 client threads × 1,500 calls</div>
+        </div>
+      </div>
+
+      <div class="chart-block">
+        <div class="chart-title">Sequential SubmitOrder round-trip latency — full gRPC call, queue, match, promise/future reply (n=3,000)</div>
+        <div class="bar-row">
+          <div class="cat">min</div>
+          <div class="bar-track"><div class="bar-fill" style="width:6.7%"></div></div>
+          <div class="val tnum">0.133 ms</div>
+        </div>
+        <div class="bar-row">
+          <div class="cat">p50</div>
+          <div class="bar-track"><div class="bar-fill" style="width:7.6%"></div></div>
+          <div class="val tnum">0.152 ms</div>
+        </div>
+        <div class="bar-row">
+          <div class="cat">p90</div>
+          <div class="bar-track"><div class="bar-fill" style="width:9.4%"></div></div>
+          <div class="val tnum">0.188 ms</div>
+        </div>
+        <div class="bar-row">
+          <div class="cat">p99</div>
+          <div class="bar-track"><div class="bar-fill" style="width:16.5%"></div></div>
+          <div class="val tnum">0.330 ms</div>
+        </div>
+        <div class="bar-row">
+          <div class="cat">max</div>
+          <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+          <div class="val tnum">1.998 ms</div>
+        </div>
+      </div>
+
+      <div class="method">
+        <b>Method.</b> Windows 11, MSYS2 UCRT64 g++ 15.2, exchange and benchmark client both on <code>localhost</code>, insecure gRPC channel, one order per RPC, Release-equivalent build (no sanitizers). Sequential = a single client issuing one blocking <code>SubmitOrder</code> call at a time after a 200-call warmup. Concurrent = 8 client threads, 1,500 calls each, wall-clock across the whole run. MPSC numbers are the queue in isolation — no gRPC, no matching logic, just <code>enqueue</code>/<code>dequeue</code>. The <b>p99-to-max gap</b> (0.33ms → 2.0ms) is one real scheduler/allocator blip in a few thousand calls, not a rounding artifact — shown rather than hidden.
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap-wide foot-grid">
+    <div style="display:flex; flex-direction:column; gap:14px;">
+      <div class="brand"><span class="brand-dot"></span>MARKET_SANDBOX</div>
+      <div class="stack-chips">
+        <span class="stack-chip">C++17</span>
+        <span class="stack-chip">gRPC + Protobuf</span>
+        <span class="stack-chip">CMake</span>
+        <span class="stack-chip">MSYS2 / MinGW g++15</span>
+        <span class="stack-chip">lock-free MPSC queue</span>
+        <span class="stack-chip">PowerShell launcher</span>
+      </div>
+    </div>
+    <p class="note">Built as a from-scratch exercise: the queue, the matching engine, the streaming layer and every bot are original code in this repo — no matching-engine framework underneath.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  // ambient hero ticker (CSS-driven), fed by a small deterministic-looking synthetic tape
+  var track = document.getElementById('tickerTrack');
+  if (track) {
+    var base = 100.00, items = [];
+    for (var i = 0; i < 40; i++) {
+      var delta = (Math.sin(i * 1.7) * 0.6 + (Math.random() - 0.5) * 0.5);
+      base = Math.max(97, Math.min(103, base + delta * 0.15));
+      var up = delta >= 0;
+      var qty = 1 + Math.floor(Math.random() * 12);
+      items.push('<span class="ticker-item">' + base.toFixed(2) +
+        ' <span class="' + (up ? 'up' : 'dn') + '">' + (up ? '▲' : '▼') + '</span> ' + qty + '</span>');
+    }
+    track.innerHTML = items.join('') + items.join('');
+  }
+
+  // ambient hero canvas: a faint scrolling price path, purely decorative
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var canvas = document.getElementById('heroCanvas');
+  if (!canvas || reduceMotion) return;
+  var ctx = canvas.getContext('2d');
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var w = 0, h = 0;
+  var points = [];
+  var accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#e3a64c';
+
+  function resize(){
+    var rect = canvas.parentElement.getBoundingClientRect();
+    w = rect.width; h = rect.height;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var n = Math.ceil(w / 6) + 2;
+    points = [];
+    var v = h * 0.55;
+    for (var i = 0; i < n; i++) {
+      v += (Math.random() - 0.5) * h * 0.05;
+      v = Math.max(h * 0.15, Math.min(h * 0.85, v));
+      points.push(v);
+    }
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  var t = 0;
+  function frame(){
+    t++;
+    if (t % 6 === 0) {
+      points.shift();
+      var last = points[points.length - 1];
+      var next = last + (Math.random() - 0.5) * h * 0.06;
+      next = Math.max(h * 0.12, Math.min(h * 0.88, next));
+      points.push(next);
+    }
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.beginPath();
+    for (var i = 0; i < points.length; i++) {
+      var x = i * 6;
+      if (i === 0) ctx.moveTo(x, points[i]); else ctx.lineTo(x, points[i]);
+    }
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    var grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, hexToRgba(accent, 0.14));
+    grad.addColorStop(1, hexToRgba(accent, 0));
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    for (var j = 0; j < points.length; j++) {
+      var xx = j * 6;
+      if (j === 0) ctx.moveTo(xx, points[j]); else ctx.lineTo(xx, points[j]);
+    }
+    ctx.strokeStyle = hexToRgba(accent, 0.55);
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    requestAnimationFrame(frame);
+  }
+
+  function hexToRgba(hex, a){
+    hex = hex.replace('#','');
+    if (hex.length === 3) hex = hex.split('').map(function(c){return c+c;}).join('');
+    var r = parseInt(hex.substring(0,2),16), g = parseInt(hex.substring(2,4),16), b = parseInt(hex.substring(4,6),16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>

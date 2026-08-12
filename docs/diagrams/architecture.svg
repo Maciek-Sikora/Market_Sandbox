@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1190 580" role="img"
+     aria-label="Trading nodes call the gRPC service, which enqueues onto a lock-free MPSC queue; a single matching-engine thread dequeues, matches against the order book, then unblocks the waiting client via a promise while separately publishing trade and top-of-book events to every subscribed node.">
+  <title>Market_Sandbox request &amp; broadcast pipeline</title>
+  <style>
+    .bg { fill:#ffffff; }
+    .box { fill:#f2f4f8; stroke:#c7cfdc; stroke-width:1.2; }
+    .box-ghost { fill:#f2f4f8; stroke:#dbe0ea; stroke-width:1.2; opacity:0.7; }
+    .box-accent { fill:#e3edf3; stroke:#3b6e8f; stroke-width:1.4; }
+    .title { fill:#1c2330; font-family:"Consolas","Menlo",monospace; font-size:14px; font-weight:700; }
+    .sub { fill:#5b6478; font-family:"Consolas","Menlo",monospace; font-size:10.5px; }
+    .edge { stroke:#7d8598; stroke-width:1.5; fill:none; }
+    .edge-dash { stroke:#7d8598; stroke-width:1.5; fill:none; stroke-dasharray:6 4; }
+    .edge-broadcast { stroke:#3b6e8f; stroke-width:1.8; fill:none; stroke-dasharray:1.5 4.5; stroke-linecap:round; }
+    .label { fill:#4b5468; font-family:"Consolas","Menlo",monospace; font-size:11px; }
+    .label-accent { fill:#2f5772; font-family:"Consolas","Menlo",monospace; font-size:11px; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7d8598"></path>
+    </marker>
+    <marker id="arrowAccent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3b6e8f"></path>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1190" height="580"></rect>
+
+  <!-- Trading Nodes: stacked rects -->
+  <rect x="36" y="196" width="185" height="78" rx="7" class="box-ghost"></rect>
+  <rect x="28" y="188" width="185" height="78" rx="7" class="box-ghost"></rect>
+  <rect x="20" y="180" width="185" height="78" rx="7" class="box"></rect>
+  <text x="112" y="202" text-anchor="middle" class="title">Trading Nodes</text>
+  <text x="112" y="218" text-anchor="middle" class="sub">node.exe × N</text>
+  <text x="112" y="233" text-anchor="middle" class="sub">market-maker · momentum</text>
+  <text x="112" y="248" text-anchor="middle" class="sub">mean-rev · noise · replay</text>
+
+  <!-- gRPC Service -->
+  <rect x="260" y="180" width="185" height="78" rx="7" class="box"></rect>
+  <text x="352" y="208" text-anchor="middle" class="title">gRPC Service</text>
+  <text x="352" y="226" text-anchor="middle" class="sub">SubmitOrder</text>
+  <text x="352" y="242" text-anchor="middle" class="sub">CancelOrder · Subscribe</text>
+
+  <!-- MPSC Queue -->
+  <rect x="500" y="180" width="185" height="78" rx="7" class="box-accent"></rect>
+  <text x="592" y="208" text-anchor="middle" class="title">MPSC Queue</text>
+  <text x="592" y="226" text-anchor="middle" class="sub">buffer-list, CAS-linked</text>
+  <text x="592" y="242" text-anchor="middle" class="sub">N producers → 1 consumer</text>
+
+  <!-- Matching Engine -->
+  <rect x="740" y="180" width="185" height="78" rx="7" class="box"></rect>
+  <text x="832" y="208" text-anchor="middle" class="title">Matching Engine</text>
+  <text x="832" y="226" text-anchor="middle" class="sub">1 thread, busy-spin loop</text>
+  <text x="832" y="242" text-anchor="middle" class="sub">no sleep on the hot path</text>
+
+  <!-- Order Book -->
+  <rect x="980" y="180" width="185" height="78" rx="7" class="box"></rect>
+  <text x="1072" y="208" text-anchor="middle" class="title">Order Book</text>
+  <text x="1072" y="226" text-anchor="middle" class="sub">price-time priority</text>
+  <text x="1072" y="242" text-anchor="middle" class="sub">std::map × std::list</text>
+
+  <!-- Market Data Publisher -->
+  <rect x="980" y="400" width="185" height="78" rx="7" class="box-accent"></rect>
+  <text x="1072" y="428" text-anchor="middle" class="title">Market Data</text>
+  <text x="1072" y="446" text-anchor="middle" class="sub">Publisher</text>
+  <text x="1072" y="462" text-anchor="middle" class="sub">own queue per subscriber</text>
+
+  <!-- forward path -->
+  <line x1="207" y1="219" x2="258" y2="219" class="edge" marker-end="url(#arrow)"></line>
+  <text x="232" y="209" text-anchor="middle" class="label">call</text>
+
+  <line x1="447" y1="219" x2="498" y2="219" class="edge" marker-end="url(#arrow)"></line>
+  <text x="472" y="209" text-anchor="middle" class="label">enqueue</text>
+
+  <line x1="687" y1="219" x2="738" y2="219" class="edge" marker-end="url(#arrow)"></line>
+  <text x="712" y="209" text-anchor="middle" class="label">dequeue</text>
+
+  <line x1="927" y1="219" x2="978" y2="219" class="edge" marker-end="url(#arrow)"></line>
+  <text x="952" y="209" text-anchor="middle" class="label">match</text>
+
+  <!-- return path (dashed), curved under B4..B2 -->
+  <path d="M 832 258 C 832 335, 352 335, 352 260" class="edge-dash" marker-end="url(#arrow)"></path>
+  <text x="592" y="349" text-anchor="middle" class="label">set_value(EngineResult) — unblocks the handler thread</text>
+
+  <path d="M 262 250 C 235 278, 207 278, 209 268" class="edge-dash" marker-end="url(#arrow)"></path>
+  <text x="234" y="296" text-anchor="middle" class="label">reply</text>
+
+  <!-- order book -> publisher -->
+  <line x1="1072" y1="258" x2="1072" y2="398" class="edge" marker-end="url(#arrow)"></line>
+  <text x="1100" y="328" text-anchor="middle" class="label" transform="rotate(90 1100 328)">events</text>
+
+  <!-- broadcast path (accent dotted), curved all the way back -->
+  <path d="M 980 439 C 620 520, 320 520, 207 242" class="edge-broadcast" marker-end="url(#arrowAccent)"></path>
+  <text x="593" y="534" text-anchor="middle" class="label-accent">MarketDataEvent stream — broadcast to every subscribed node</text>
+
+  <!-- legend -->
+  <line x1="20" y1="558" x2="50" y2="558" class="edge"></line>
+  <text x="56" y="562" class="label">request</text>
+  <line x1="140" y1="558" x2="170" y2="558" class="edge-dash"></line>
+  <text x="176" y="562" class="label">sync reply</text>
+  <line x1="278" y1="558" x2="308" y2="558" class="edge-broadcast"></line>
+  <text x="314" y="562" class="label-accent">async broadcast</text>
+</svg>
