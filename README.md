@@ -27,7 +27,7 @@ Bids and asks live in C++ standard library implementation of ordered map. Each p
 
 Matching procedure is conceptually a fairly simple price-time priority routine. However, since we are dealing with market and limit order types it requires some more complexity. 
 
-An incoming order walks the opposite side book from the best price outward, filling resting orders oldest-first within each level it crosses. A `LIMIT` that doesn't fully cross rests at its price in the order book. A `MARKET` order that can't fully fill is rejected — whatever quantity *did* execute is still reported, but nothing is left resting.
+An incoming order walks the opposite side book from the best price outward, filling resting orders oldest-first within each level it crosses. A `LIMIT` that doesn't fully cross rests at its price in the order book. A `MARKET` order that can't fully fill is rejected: whatever quantity *did* execute is still reported, but nothing is left resting.
 
 ## The MPSC queue
 
@@ -47,7 +47,7 @@ Under the hood, producers claim slots with a plain atomic increment, arrays are 
 |---|---|
 | `market-maker` | Rests a bid and an ask around the current mid, re-quoting when price drifts past a threshold. The default source of resting liquidity. |
 | `momentum` | Tracks a rolling trade-price window. Fires a market order in the direction of the recent trend once it clears a threshold return. |
-| `mean-reversion` | Same rolling window, opposite bet — sells when price has run up too far above its recent average, buys when it's dropped too far below, betting it snaps back. |
+| `mean-reversion` | Same rolling window, opposite bet: sells when price has run up too far above its recent average, buys when it's dropped too far below, betting it snaps back. |
 | `noise` | Random side/size/price jitter on a probability gate each tick, with a standing chance to cancel its own resting orders. Pure activity generator. |
 | `replay` | Loads a bundled CSV of `(offset_ms, price)` checkpoints and nudges the market toward each one on an accelerated clock |
 
@@ -74,7 +74,7 @@ Sequential `SubmitOrder` latency, full gRPC round trip through the queue and mat
 | p99 | 0.330 ms |
 | max | 1.998 ms |
 
-**Method.** Windows 11, MSYS2 UCRT64 g++ 15.2, exchange and benchmark client both on `localhost`, insecure gRPC channel, one order per RPC. Sequential = one client issuing blocking calls one at a time after a 200-call warmup. Concurrent = 8 client threads racing independently, wall-clock across the whole run. MPSC numbers are the queue in isolation — no gRPC, no matching logic involved. The p99-to-max gap (0.33ms → 2.0ms) is one real scheduler or allocator hiccup in a few thousand calls, not a rounding artifact; shown rather than trimmed.
+**Method.** Windows 11, MSYS2 UCRT64 g++ 15.2, exchange and benchmark client both on `localhost`, insecure gRPC channel, one order per RPC. Sequential = one client issuing blocking calls one at a time after a 200-call warmup. Concurrent = 8 client threads racing independently, wall-clock across the whole run. MPSC numbers are the queue in isolation: no gRPC, no matching logic involved. The p99-to-max gap (0.33ms → 2.0ms) is one real scheduler or allocator hiccup in a few thousand calls, not a rounding artifact; shown rather than trimmed.
 
 
 ## What's actually in here
