@@ -10,6 +10,7 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
+find_package(CapnProto CONFIG REQUIRED)
 
 set(PROTO_OUT_DIR ${CMAKE_SOURCE_DIR}/generated-proto)
 file(MAKE_DIRECTORY ${PROTO_OUT_DIR})
@@ -34,13 +35,23 @@ protobuf_generate(
     PROTOC_OUT_DIR ${PROTO_OUT_DIR}
 )
 
+
+set(CAPNP_OUT_DIR ${CMAKE_SOURCE_DIR}/generated-capnp)
+file(MAKE_DIRECTORY ${CAPNP_OUT_DIR})
+
+set(CAPNPC_SRC_PREFIX ${CMAKE_SOURCE_DIR}/capnp)
+set(CAPNPC_OUTPUT_DIR ${CAPNP_OUT_DIR})
+capnp_generate_cpp(CAPNP_SRCS CAPNP_HDRS capnp/marketdata.capnp)
+
 add_executable(exchangeService
     exchange/OrderProcessor/service/exchangeService.cpp
+    exchange/OrderProcessor/service/capnpFeedServer.cpp
     exchange/OrderProcessor/engine/orderBook.cpp
     exchange/OrderProcessor/engine/matchingEngine.cpp
     exchange/OrderProcessor/engine/marketDataPublisher.cpp
     ${PROTO_SRCS}
     ${GRPC_SRCS}
+    ${CAPNP_SRCS}
 )
 
 target_include_directories(exchangeService PRIVATE
@@ -51,7 +62,9 @@ target_include_directories(exchangeService PRIVATE
 target_link_libraries(exchangeService PRIVATE
     gRPC::grpc++
     protobuf::libprotobuf
+    CapnProto::capnp
     Threads::Threads
+    ws2_32
 )
 
 add_executable(node
@@ -98,4 +111,12 @@ if(BUILD_BENCHMARKS)
     )
     target_include_directories(exchange_benchmark PRIVATE ${CMAKE_SOURCE_DIR} ${PROTO_OUT_DIR})
     target_link_libraries(exchange_benchmark PRIVATE gRPC::grpc++ protobuf::libprotobuf Threads::Threads)
+
+    add_executable(capnp_demo
+        exchange/OrderProcessor/service/tests/capnpDemoMain.cpp
+        ${PROTO_SRCS}
+        ${CAPNP_SRCS}
+    )
+    target_include_directories(capnp_demo PRIVATE ${CMAKE_SOURCE_DIR} ${PROTO_OUT_DIR})
+    target_link_libraries(capnp_demo PRIVATE protobuf::libprotobuf CapnProto::capnp Threads::Threads ws2_32)
 endif()

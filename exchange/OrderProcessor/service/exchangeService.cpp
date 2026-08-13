@@ -17,6 +17,7 @@
 #include "exchange/OrderProcessor/engine/matchingEngine.h"
 #include "exchange/OrderProcessor/engine/marketDataPublisher.h"
 #include "exchange/OrderProcessor/service/orderIdGenerator.h"
+#include "exchange/OrderProcessor/service/capnpFeedServer.h"
 
 class ExchangeServiceImpl final
     : public market::SubmitOrder::Service,
@@ -94,6 +95,9 @@ int main() {
 
     ExchangeServiceImpl service(queue, publisher);
 
+    CapnpFeedServer feedServer(publisher, 50052);
+    feedServer.start();
+
     std::string serverAddress("0.0.0.0:50051");
     grpc::ServerBuilder builder;
     builder.AddListeningPort(serverAddress, grpc::InsecureServerCredentials());
@@ -104,6 +108,7 @@ int main() {
     std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
     server->Wait();
 
+    feedServer.stop();
     engine.stop();
     return 0;
 }

@@ -1,5 +1,6 @@
 /misc
 /generated-proto
+/generated-capnp
 /.vscode
 /compilledProtos
 /build
