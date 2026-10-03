@@ -11,11 +11,14 @@
 #include "exchange/OrderProcessor/entity/orderSide.h"
 #include "exchange/OrderProcessor/engine/engineResult.h"
 #include "exchange/OrderProcessor/engine/marketEvent.h"
+#include "exchange/OrderProcessor/engine/telemetry.h"
 
 class OrderBook {
 public:
     EngineResult submit(Order order, uint64_t timestamp, std::vector<MarketEvent>& events);
     EngineResult cancel(const std::string& orderId, uint64_t timestamp, std::vector<MarketEvent>& events);
+
+    BookDepth depth(size_t levels) const;
 
 private:
     struct OrderLocation {

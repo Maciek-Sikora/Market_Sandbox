@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package market;
+
+import "order.proto";
+import "marketdata.proto";
+
+
+enum TelemetryOp {
+  TELEMETRY_OP_UNSPECIFIED = 0;
+  OP_SUBMIT = 1;
+  OP_CANCEL = 2;
+}
+
+message OrderEvent {
+  TelemetryOp op = 1;
+  string order_id = 2;
+  string node_id = 3;
+  OrderSide side = 4;
+  OrderType type = 5;
+  double price = 6;
+  int64 quantity = 7;
+  OrderStatus status = 8;
+  int64 filled_quantity = 9;
+  double avg_price = 10;
+  string rejection_reason = 11;
+  bool cancel_successful = 12;
+}
+
+message BookLevel {
+  double price = 1;
+  int64 quantity = 2;
+  uint32 orders = 3;
+}
+
+message BookSnapshot {
+  repeated BookLevel bids = 1;
+  repeated BookLevel asks = 2;
+}
+
+message PipelineTrace {
+  uint64 seq = 1;
+  int64 t_rpc_in = 2;
+  int64 t_enqueue = 3;
+  int64 t_dequeue = 4;
+  int64 t_match_done = 5;
+  int64 t_promise_set = 6;
+  int64 t_publish = 7;
+}
+
+message TelemetryBatch {
+  uint64 timestamp = 1;
+  OrderEvent order = 2;
+  PipelineTrace trace = 3;
+  repeated Trade trades = 4;
+  TopOfBook top_of_book = 5;
+  BookSnapshot book = 6;
+}
+
+service Telemetry {
+  rpc Subscribe(SubscribeRequest) returns (stream TelemetryBatch);
+}

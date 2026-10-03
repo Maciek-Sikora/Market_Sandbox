@@ -46,6 +46,24 @@ TopOfBook OrderBook::currentTopOfBook(uint64_t timestamp) const {
     return tob;
 }
 
+BookDepth OrderBook::depth(size_t levels) const {
+    BookDepth d;
+    auto collect = [levels](const auto& side, std::vector<DepthLevel>& out) {
+        for (auto it = side.begin(); it != side.end() && out.size() < levels; ++it) {
+            DepthLevel level;
+            level.price = it->first;
+            level.orders = static_cast<uint32_t>(it->second.size());
+            for (const auto& o : it->second) {
+                level.quantity += o.getQuantity();
+            }
+            out.push_back(level);
+        }
+    };
+    collect(_bids, d.bids);
+    collect(_asks, d.asks);
+    return d;
+}
+
 EngineResult OrderBook::submitBid(Order order, uint64_t timestamp, std::vector<MarketEvent>& events) {
     EngineResult result;
     result.timestamp = timestamp;

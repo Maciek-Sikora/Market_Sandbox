@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <future>
 #include <memory>
 #include <string>
@@ -18,4 +19,6 @@ struct CancelPayload {
 struct QueueMessage {
     std::variant<std::monostate, SubmitPayload, CancelPayload> payload;
     std::shared_ptr<std::promise<EngineResult>> resultPromise;
+    int64_t tRpcIn = 0;
+    int64_t tEnqueue = 0;
 };

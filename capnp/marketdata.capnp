@@ -1,6 +1,7 @@
 @0xe70cacf93345538e;
 
 using Cxx = import "/capnp/c++.capnp";
+$Cxx.namespace("mktfeed");
 
 
 enum OrderSide {

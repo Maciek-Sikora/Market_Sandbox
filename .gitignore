@@ -5,3 +5,10 @@
 /compilledProtos
 /build
 /nodes/logs
+/build-release
+/web/node_modules
+/web/dist
+
+/web/*.log
+/web/*.err
+/web/public/recordings/session-*.ndjson
