@@ -18,6 +18,8 @@ export type ClockMode = "follow" | "play" | "pause";
 const MAX_FRAMES = 20_000;
 const TRIM = 2_000;
 const GATEWAY_URL = (import.meta.env.VITE_GATEWAY as string | undefined) ?? `ws://${location.hostname || "localhost"}:8787`;
+const LOCAL_HOSTS = ["localhost", "127.0.0.1", "[::1]", ""];
+const GATEWAY_REACHABLE = !!import.meta.env.VITE_GATEWAY || LOCAL_HOSTS.includes(location.hostname);
 const RECORDING_URL = `${import.meta.env.BASE_URL}recordings/demo-session.ndjson`;
 
 export interface OrderResult {
@@ -200,6 +202,10 @@ export class Feed {
   }
 
   start() {
+    if (!GATEWAY_REACHABLE) {
+      void this.useReplay();
+      return;
+    }
     this.connect();
     window.setTimeout(() => {
       if (this.source === "connecting") void this.useReplay();
