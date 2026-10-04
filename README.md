@@ -1,5 +1,15 @@
 # Market Sandbox
 
+<h1 align="center">
+  <a href="https://maciek-sikora.github.io/Market_Sandbox/">▶ LIVE DEMO AND VISUALIZATION ◀</a>
+</h1>
+
+<p align="center">
+  <a href="https://maciek-sikora.github.io/Market_Sandbox/"><b>https://maciek-sikora.github.io/Market_Sandbox/</b></a><br>
+  Watch orders move through the C++ pipeline, step through them in slow motion, and read the book, trades and benchmarks.<br>
+  The hosted page replays a session recorded from the real engine. To trade against it live, run it locally (see <a href="web/README.md"><code>web/README.md</code></a>).
+</p>
+
 Market_Sandbox is a trading exchange engine written from scratch in C++17. At its core sits a lock-free multi-producer single-consumer queue feeding a price-time-priority matching engine, wrapped in gRPC for order entry and streaming market data. On top of that, a handful of algorithmic bots trade against each other so the book actually has something to match.
 
 I built this to challenge myself to construct the actual heart of a trading venue, namely the order book and the matching engine. Secondly, I wanted to experiment with a performance of my implementation and applied improvements. It's a portfolio project, not a production system yet.
